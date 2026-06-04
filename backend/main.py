@@ -1,0 +1,68 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.database.database import engine, Base
+
+from app.models.user_model import User
+from app.models.loan_model import Loan
+from app.models.investment_model import Investment
+from app.models.wallet_model import Wallet
+from app.models.transaction_model import Transaction
+
+from app.routes.auth_route import router as auth_router
+from app.routes.loan_route import router as loan_router
+from app.routes.investment_route import router as investment_router
+from app.routes.admin_route import router as admin_router
+from app.routes.wallet_route import router as wallet_router
+from app.routes.transaction_route import router as transaction_router
+from app.models.notification_model import Notification
+from app.routes.notification_route import router as notification_router
+from app.routes.repayment_route import router as repayment_router
+
+# =========================================
+# CREATE DATABASE TABLES
+# =========================================
+
+Base.metadata.create_all(bind=engine)
+
+# =========================================
+# FASTAPI APP
+# =========================================
+
+app = FastAPI()
+
+# =========================================
+# CORS
+# =========================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# =========================================
+# ROUTES
+# =========================================
+
+app.include_router(auth_router)
+app.include_router(loan_router)
+app.include_router(investment_router)
+app.include_router(admin_router)
+app.include_router(wallet_router)
+app.include_router(transaction_router)
+app.include_router(notification_router)
+app.include_router(repayment_router)
+
+# =========================================
+# HOME ROUTE
+# =========================================
+
+@app.get("/")
+def home():
+
+    return {
+        "message": "P2P Lending System API Running"
+    }
