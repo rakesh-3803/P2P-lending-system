@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-
 from sqlalchemy.orm import Session
 
 from app.database.db_dependency import get_db
@@ -29,10 +28,8 @@ def apply_loan(
     user=Depends(verify_token)
 ):
 
-    # ONLY BORROWER
     check_role(user, ["BORROWER"])
 
-    # CREATE LOAN
     new_loan = Loan(
         borrower_id=user["user_id"],
         amount=loan.amount,
@@ -44,16 +41,14 @@ def apply_loan(
 
     db.add(new_loan)
 
-    # NOTIFICATION
     notification = Notification(
         user_id=user["user_id"],
-        message="Loan application submitted"
+        message="Loan application submitted successfully"
     )
 
     db.add(notification)
 
     db.commit()
-
     db.refresh(new_loan)
 
     return {
@@ -63,7 +58,7 @@ def apply_loan(
 
 
 # =========================================
-# MY LOANS
+# BORROWER LOANS
 # =========================================
 
 @router.get("/my-loans")
@@ -82,6 +77,25 @@ def my_loans(
 
 
 # =========================================
+# APPROVED LOANS FOR LENDERS
+# =========================================
+
+@router.get("/approved-loans")
+def approved_loans(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["LENDER"])
+
+    loans = db.query(Loan).filter(
+        Loan.status == "APPROVED"
+    ).all()
+
+    return loans
+
+
+# =========================================
 # REPAY LOAN
 # =========================================
 
@@ -94,7 +108,6 @@ def repay_loan(
 
     check_role(user, ["BORROWER"])
 
-    # FIND LOAN
     loan = db.query(Loan).filter(
         Loan.id == loan_id
     ).first()
@@ -106,21 +119,21 @@ def repay_loan(
             detail="Loan not found"
         )
 
-    # CHECK STATUS
-    if loan.status != "APPROVED":
+    if loan.borrower_id != user["user_id"]:
+
+        raise HTTPException(
+            status_code=403,
+            detail="Unauthorized"
+        )
+
+    # MUST BE FUNDED BEFORE REPAYMENT
+    if loan.status != "FUNDED":
 
         raise HTTPException(
             status_code=400,
-            detail="Loan already repaid or invalid"
+            detail="Loan is not funded or already repaid"
         )
 
-    # TOTAL REPAYMENT
-    total_repayment = (
-        loan.amount +
-        (loan.amount * loan.interest_rate / 100)
-    )
-
-    # BORROWER WALLET
     borrower_wallet = db.query(Wallet).filter(
         Wallet.user_id == user["user_id"]
     ).first()
@@ -129,10 +142,14 @@ def repay_loan(
 
         raise HTTPException(
             status_code=404,
-            detail="Wallet not found"
+            detail="Borrower wallet not found"
         )
 
-    # CHECK BALANCE
+    total_repayment = (
+        loan.amount +
+        (loan.amount * loan.interest_rate / 100)
+    )
+
     if borrower_wallet.balance < total_repayment:
 
         raise HTTPException(
@@ -140,57 +157,42 @@ def repay_loan(
             detail="Insufficient wallet balance"
         )
 
-    # DEDUCT BORROWER MONEY
     borrower_wallet.balance -= total_repayment
 
-    # FIND INVESTMENTS
-    investments = db.query(Investment).filter(
+    investment = db.query(Investment).filter(
         Investment.loan_id == loan.id
-    ).all()
+    ).first()
 
-    # DISTRIBUTE MONEY TO LENDERS
-    for investment in investments:
+    if not investment:
 
-        lender_wallet = db.query(Wallet).filter(
-            Wallet.user_id == investment.lender_id
-        ).first()
+        raise HTTPException(
+            status_code=404,
+            detail="Investment not found"
+        )
 
-        if lender_wallet:
+    lender_wallet = db.query(Wallet).filter(
+        Wallet.user_id == investment.lender_id
+    ).first()
 
-            lender_return = (
-                investment.amount +
-                (
-                    investment.amount *
-                    loan.interest_rate / 100
-                )
-            )
+    if not lender_wallet:
 
-            lender_wallet.balance += lender_return
+        raise HTTPException(
+            status_code=404,
+            detail="Lender wallet not found"
+        )
 
-            db.add(lender_wallet)
+    lender_return = (
+        investment.amount +
+        (
+            investment.amount *
+            loan.interest_rate / 100
+        )
+    )
 
-            # TRANSACTION
-            lender_transaction = Transaction(
-                user_id=investment.lender_id,
-                amount=lender_return,
-                transaction_type="CREDIT",
-                description="Loan repayment received"
-            )
+    lender_wallet.balance += lender_return
 
-            db.add(lender_transaction)
+    # TRANSACTIONS
 
-            # NOTIFICATION
-            lender_notification = Notification(
-                user_id=investment.lender_id,
-                message=f"₹{lender_return} repayment received"
-            )
-
-            db.add(lender_notification)
-
-    # MARK COMPLETED
-    loan.status = "COMPLETED"
-
-    # BORROWER TRANSACTION
     borrower_transaction = Transaction(
         user_id=user["user_id"],
         amount=total_repayment,
@@ -198,36 +200,39 @@ def repay_loan(
         description="Loan repayment"
     )
 
-    db.add(borrower_transaction)
+    lender_transaction = Transaction(
+        user_id=investment.lender_id,
+        amount=lender_return,
+        transaction_type="CREDIT",
+        description="Loan repayment received"
+    )
 
-    # BORROWER NOTIFICATION
+    db.add(borrower_transaction)
+    db.add(lender_transaction)
+
+    # NOTIFICATIONS
+
     borrower_notification = Notification(
         user_id=user["user_id"],
         message="Loan repaid successfully"
     )
 
+    lender_notification = Notification(
+        user_id=investment.lender_id,
+        message=f"₹{lender_return} credited from borrower repayment"
+    )
+
     db.add(borrower_notification)
+    db.add(lender_notification)
+
+    # MARK COMPLETED
+
+    loan.status = "COMPLETED"
 
     db.commit()
 
     return {
         "message": "Loan repaid successfully",
-        "total_paid": total_repayment
+        "total_paid": total_repayment,
+        "lender_received": lender_return
     }
-# =========================================
-# GET APPROVED LOANS FOR LENDERS
-# =========================================
-
-@router.get("/approved-loans")
-def get_approved_loans(
-    db: Session = Depends(get_db),
-    user=Depends(verify_token)
-):
-
-    check_role(user, ["LENDER"])
-
-    loans = db.query(Loan).filter(
-        Loan.status == "APPROVED"
-    ).all()
-
-    return loans

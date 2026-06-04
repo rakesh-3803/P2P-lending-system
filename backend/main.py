@@ -17,7 +17,8 @@ from app.routes.wallet_route import router as wallet_router
 from app.routes.transaction_route import router as transaction_router
 from app.models.notification_model import Notification
 from app.routes.notification_route import router as notification_router
-from app.routes.repayment_route import router as repayment_router
+from app.models.bank_account_model import BankAccount
+from app.routes.bank_account_route import router as bank_account_router
 
 # =========================================
 # CREATE DATABASE TABLES
@@ -54,7 +55,7 @@ app.include_router(admin_router)
 app.include_router(wallet_router)
 app.include_router(transaction_router)
 app.include_router(notification_router)
-app.include_router(repayment_router)
+app.include_router(bank_account_router)
 
 # =========================================
 # HOME ROUTE

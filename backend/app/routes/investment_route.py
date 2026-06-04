@@ -17,10 +17,6 @@ from app.auth.role_checker import check_role
 router = APIRouter()
 
 
-# =========================================
-# INVEST IN LOAN
-# =========================================
-
 @router.post("/invest")
 def invest_in_loan(
     investment: InvestmentCreate,
@@ -30,92 +26,166 @@ def invest_in_loan(
 
     check_role(user, ["LENDER"])
 
-    # FIND LOAN
     loan = db.query(Loan).filter(
         Loan.id == investment.loan_id
     ).first()
 
     if not loan:
-
         raise HTTPException(
             status_code=404,
             detail="Loan not found"
         )
 
-    # ONLY APPROVED LOANS
     if loan.status != "APPROVED":
-
         raise HTTPException(
             status_code=400,
-            detail="Loan not approved"
+            detail="This loan is already funded or not available"
         )
 
-    # LENDER WALLET
+    if investment.amount != loan.amount:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You must invest full loan amount ₹{loan.amount}"
+        )
+
+    existing_investment = db.query(Investment).filter(
+        Investment.loan_id == loan.id
+    ).first()
+
+    if existing_investment:
+        raise HTTPException(
+            status_code=400,
+            detail="Loan already funded"
+        )
+
     lender_wallet = db.query(Wallet).filter(
         Wallet.user_id == user["user_id"]
     ).first()
 
     if not lender_wallet:
-
         raise HTTPException(
             status_code=404,
-            detail="Wallet not found"
+            detail="Lender wallet not found"
         )
 
-    # CHECK BALANCE
     if lender_wallet.balance < investment.amount:
-
         raise HTTPException(
             status_code=400,
             detail="Insufficient balance"
         )
 
-    # CREATE INVESTMENT
+    borrower_wallet = db.query(Wallet).filter(
+        Wallet.user_id == loan.borrower_id
+    ).first()
+
+    if not borrower_wallet:
+        raise HTTPException(
+            status_code=404,
+            detail="Borrower wallet not found"
+        )
+
     new_investment = Investment(
         lender_id=user["user_id"],
-        loan_id=investment.loan_id,
+        loan_id=loan.id,
         amount=investment.amount
     )
 
     db.add(new_investment)
 
-    # DEDUCT LENDER MONEY
     lender_wallet.balance -= investment.amount
 
-    # CREDIT BORROWER
-    borrower_wallet = db.query(Wallet).filter(
-        Wallet.user_id == loan.borrower_id
-    ).first()
+    borrower_wallet.balance += investment.amount
 
-    if borrower_wallet:
+    loan.status = "FUNDED"
 
-        borrower_wallet.balance += investment.amount
-
-    # TRANSACTION
-    transaction = Transaction(
+    lender_transaction = Transaction(
         user_id=user["user_id"],
         amount=investment.amount,
         transaction_type="DEBIT",
         description="Loan investment"
     )
 
-    db.add(transaction)
-
-    # NOTIFICATION
-    notification = Notification(
+    borrower_transaction = Transaction(
         user_id=loan.borrower_id,
-        message=f"₹{investment.amount} invested in your loan"
+        amount=investment.amount,
+        transaction_type="CREDIT",
+        description="Loan amount received"
     )
 
-    db.add(notification)
+    db.add(lender_transaction)
+    db.add(borrower_transaction)
 
-    # VERY IMPORTANT
+    borrower_notification = Notification(
+        user_id=loan.borrower_id,
+        message=f"₹{investment.amount} credited to your wallet"
+    )
+
+    lender_notification = Notification(
+        user_id=user["user_id"],
+        message=f"You invested ₹{investment.amount} successfully"
+    )
+
+    db.add(borrower_notification)
+    db.add(lender_notification)
+
     db.commit()
-
     db.refresh(new_investment)
 
     return {
-        "message": "Investment successful",
+        "message": "Investment successful. Loan is now funded.",
         "investment_id": new_investment.id,
+        "loan_status": loan.status,
         "remaining_balance": lender_wallet.balance
     }
+
+
+@router.get("/my-investments")
+def my_investments(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["LENDER"])
+
+    investments = db.query(Investment).filter(
+        Investment.lender_id == user["user_id"]
+    ).all()
+
+    result = []
+
+    for investment in investments:
+
+        loan = db.query(Loan).filter(
+            Loan.id == investment.loan_id
+        ).first()
+
+        if loan:
+
+            result.append({
+
+                "investment_id": investment.id,
+
+                "loan_id": loan.id,
+
+                "borrower_id": loan.borrower_id,
+
+                "amount_invested": investment.amount,
+
+                "loan_amount": loan.amount,
+
+                "interest_rate": loan.interest_rate,
+
+                "purpose": loan.purpose,
+
+                "status": loan.status,
+
+                "expected_return":
+                    investment.amount +
+                    (
+                        investment.amount *
+                        loan.interest_rate / 100
+                    )
+
+            })
+
+    return result
