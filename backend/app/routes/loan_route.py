@@ -8,11 +8,13 @@ from app.models.wallet_model import Wallet
 from app.models.transaction_model import Transaction
 from app.models.investment_model import Investment
 from app.models.notification_model import Notification
+from app.models.borrower_profile_model import BorrowerProfile
 
 from app.schemas.loan_schema import LoanCreate
 
 from app.auth.auth_bearer import verify_token
 from app.auth.role_checker import check_role
+
 
 router = APIRouter()
 
@@ -30,6 +32,28 @@ def apply_loan(
 
     check_role(user, ["BORROWER"])
 
+    # CHECK PROFILE
+    profile = db.query(
+        BorrowerProfile
+    ).filter(
+        BorrowerProfile.user_id == user["user_id"]
+    ).first()
+
+    if not profile:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Complete borrower profile before applying for loan"
+        )
+
+    if not profile.profile_completed:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Borrower profile not completed"
+        )
+
+    # CREATE LOAN
     new_loan = Loan(
         borrower_id=user["user_id"],
         amount=loan.amount,
@@ -55,7 +79,6 @@ def apply_loan(
         "message": "Loan applied successfully",
         "loan_id": new_loan.id
     }
-
 
 # =========================================
 # BORROWER LOANS
