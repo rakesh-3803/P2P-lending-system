@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy import DateTime
+from datetime import datetime
 from app.database.database import Base
 
 
@@ -19,3 +21,14 @@ class BankAccount(Base):
     bank_name = Column(String, nullable=False)
 
     balance = Column(Float, default=0)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )

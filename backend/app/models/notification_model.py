@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy import DateTime
+from datetime import datetime
 from app.database.database import Base
 
 
@@ -19,4 +21,15 @@ class Notification(Base):
     status = Column(
         String,
         default="UNREAD"
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )

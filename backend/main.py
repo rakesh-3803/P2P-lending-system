@@ -10,6 +10,7 @@ from app.models.investment_model import Investment
 from app.models.wallet_model import Wallet
 from app.models.transaction_model import Transaction
 from app.models.lender_rejection_model import LenderRejection
+from app.models.emi_model import EMI
 
 from app.routes.auth_route import router as auth_router
 from app.routes.loan_route import router as loan_router
@@ -23,6 +24,7 @@ from app.models.bank_account_model import BankAccount
 from app.routes.bank_account_route import router as bank_account_router
 from app.routes.borrower_profile_route import router as borrower_profile_router
 from app.routes.lender_rejection_route import router as lender_rejection_router
+from app.routes.ai_agent_route import router as ai_agent_router
 
 # =========================================
 # CREATE DATABASE TABLES
@@ -62,6 +64,7 @@ app.include_router(notification_router)
 app.include_router(bank_account_router)
 app.include_router(borrower_profile_router)
 app.include_router(lender_rejection_router)
+app.include_router(ai_agent_router)
 
 # =========================================
 # HOME ROUTE

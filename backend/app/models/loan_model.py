@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import DateTime
+from datetime import datetime
 
 from app.database.database import Base
 
@@ -20,3 +22,14 @@ class Loan(Base):
     purpose = Column(String, nullable=False)
 
     status = Column(String, default="PENDING")
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )

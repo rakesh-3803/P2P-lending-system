@@ -7,6 +7,12 @@ from app.models.user_model import User
 from app.models.loan_model import Loan
 from app.models.notification_model import Notification
 from app.models.borrower_profile_model import BorrowerProfile
+from app.models.investment_model import Investment
+from app.models.wallet_model import Wallet
+from app.models.transaction_model import Transaction
+from app.models.bank_account_model import BankAccount
+from app.models.borrower_profile_model import BorrowerProfile
+from app.models.emi_model import EMI
 
 from app.auth.auth_bearer import verify_token
 from app.auth.role_checker import check_role
@@ -140,6 +146,7 @@ def approve_loan(
         )
 
     loan.status = "APPROVED"
+    
 
     notification = Notification(
         user_id=loan.borrower_id,
@@ -215,4 +222,102 @@ def block_user(
 
     return {
         "message": "User blocked successfully"
+    }
+
+@router.get("/admin/analytics")
+def admin_analytics(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["ADMIN"])
+
+    total_users = db.query(User).count()
+
+    total_borrowers = db.query(User).filter(
+        User.role.ilike("borrower")
+    ).count()
+
+    total_lenders = db.query(User).filter(
+        User.role.ilike("lender")
+    ).count()
+
+    total_loans = db.query(Loan).count()
+
+    pending_loans = db.query(Loan).filter(
+        Loan.status == "PENDING"
+    ).count()
+
+    approved_loans = db.query(Loan).filter(
+        Loan.status == "APPROVED"
+    ).count()
+
+    funded_loans = db.query(Loan).filter(
+        Loan.status == "FUNDED"
+    ).count()
+
+    completed_loans = db.query(Loan).filter(
+        Loan.status == "COMPLETED"
+    ).count()
+
+    rejected_loans = db.query(Loan).filter(
+        Loan.status.in_([
+            "REJECTED",
+            "REJECTED_BY_LENDERS"
+        ])
+    ).count()
+
+    total_loan_amount = sum(
+        loan.amount for loan in db.query(Loan).all()
+    )
+
+    total_invested_amount = sum(
+        investment.amount
+        for investment in db.query(Investment).all()
+    )
+
+    total_wallet_balance = sum(
+        wallet.balance
+        for wallet in db.query(Wallet).all()
+    )
+
+    total_bank_balance = sum(
+        bank.balance
+        for bank in db.query(BankAccount).all()
+    )
+
+    total_transactions = db.query(Transaction).count()
+
+    completed_profiles = db.query(BorrowerProfile).filter(
+        BorrowerProfile.profile_completed == True
+    ).count()
+
+    return {
+        "users": {
+            "total_users": total_users,
+            "borrowers": total_borrowers,
+            "lenders": total_lenders
+        },
+        "loans": {
+            "total_loans": total_loans,
+            "pending_loans": pending_loans,
+            "approved_loans": approved_loans,
+            "funded_loans": funded_loans,
+            "completed_loans": completed_loans,
+            "rejected_loans": rejected_loans,
+            "total_loan_amount": total_loan_amount
+        },
+        "investments": {
+            "total_invested_amount": total_invested_amount
+        },
+        "wallets": {
+            "total_wallet_balance": total_wallet_balance,
+            "total_bank_balance": total_bank_balance
+        },
+        "transactions": {
+            "total_transactions": total_transactions
+        },
+        "borrower_profiles": {
+            "completed_profiles": completed_profiles
+        }
     }

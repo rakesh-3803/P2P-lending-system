@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +9,7 @@ from app.models.loan_model import Loan
 from app.models.wallet_model import Wallet
 from app.models.transaction_model import Transaction
 from app.models.notification_model import Notification
+from app.models.emi_model import EMI
 
 from app.schemas.investment_schema import InvestmentCreate
 
@@ -93,10 +95,37 @@ def invest_in_loan(
     db.add(new_investment)
 
     lender_wallet.balance -= investment.amount
-
     borrower_wallet.balance += investment.amount
 
     loan.status = "FUNDED"
+
+    # GENERATE EMI SCHEDULE
+    total_repayment = (
+        loan.amount +
+        (
+            loan.amount * loan.interest_rate / 100
+        )
+    )
+
+    emi_amount = round(
+        total_repayment / loan.tenure_months,
+        2
+    )
+
+    for emi_number in range(
+        1,
+        loan.tenure_months + 1
+    ):
+
+        emi = EMI(
+            loan_id=loan.id,
+            borrower_id=loan.borrower_id,
+            emi_number=emi_number,
+            amount=emi_amount,
+            status="PENDING"
+        )
+
+        db.add(emi)
 
     lender_transaction = Transaction(
         user_id=user["user_id"],
@@ -117,7 +146,10 @@ def invest_in_loan(
 
     borrower_notification = Notification(
         user_id=loan.borrower_id,
-        message=f"₹{investment.amount} credited to your wallet"
+        message=(
+            f"₹{investment.amount} credited to your wallet. "
+            f"{loan.tenure_months} EMI schedule generated."
+        )
     )
 
     lender_notification = Notification(
@@ -135,7 +167,9 @@ def invest_in_loan(
         "message": "Investment successful. Loan is now funded.",
         "investment_id": new_investment.id,
         "loan_status": loan.status,
-        "remaining_balance": lender_wallet.balance
+        "remaining_balance": lender_wallet.balance,
+        "emi_amount": emi_amount,
+        "number_of_emis": loan.tenure_months
     }
 
 

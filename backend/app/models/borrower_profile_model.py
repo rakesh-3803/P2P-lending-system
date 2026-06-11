@@ -6,7 +6,8 @@ from sqlalchemy import (
     Boolean,
     ForeignKey
 )
-
+from sqlalchemy import DateTime
+from datetime import datetime
 from app.database.database import Base
 
 
@@ -44,4 +45,14 @@ class BorrowerProfile(Base):
     profile_completed = Column(
         Boolean,
         default=True
+    )
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )

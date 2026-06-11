@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import DateTime
+from datetime import datetime
 
 from app.database.database import Base
 
@@ -18,3 +20,14 @@ class User(Base):
     role = Column(String, nullable=False)
 
     is_blocked = Column(Boolean, default=False)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
