@@ -4,11 +4,12 @@ from sqlalchemy import (
     String,
     Float,
     Boolean,
-    ForeignKey
+    ForeignKey,
+    DateTime
 )
-from sqlalchemy import DateTime
-from datetime import datetime
+
 from app.database.database import Base
+from app.utils.time_utils import get_ist_time
 
 
 class BorrowerProfile(Base):
@@ -27,15 +28,25 @@ class BorrowerProfile(Base):
         unique=True
     )
 
-    aadhaar_number = Column(String)
+    aadhaar_number = Column(
+        String
+    )
 
-    pan_number = Column(String)
+    pan_number = Column(
+        String
+    )
 
-    annual_income = Column(Float)
+    annual_income = Column(
+        Float
+    )
 
-    occupation = Column(String)
+    occupation = Column(
+        String
+    )
 
-    company_name = Column(String)
+    company_name = Column(
+        String
+    )
 
     credit_score = Column(
         Integer,
@@ -46,13 +57,14 @@ class BorrowerProfile(Base):
         Boolean,
         default=True
     )
+
     created_at = Column(
-        DateTime,
-        default=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time
     )
 
     updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time,
+        onupdate=get_ist_time
     )

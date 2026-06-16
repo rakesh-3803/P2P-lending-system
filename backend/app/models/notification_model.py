@@ -1,7 +1,12 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy import DateTime
-from datetime import datetime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime
+)
+
 from app.database.database import Base
+from app.utils.time_utils import get_ist_time
 
 
 class Notification(Base):
@@ -14,9 +19,13 @@ class Notification(Base):
         index=True
     )
 
-    user_id = Column(Integer)
+    user_id = Column(
+        Integer
+    )
 
-    message = Column(String)
+    message = Column(
+        String
+    )
 
     status = Column(
         String,
@@ -24,12 +33,12 @@ class Notification(Base):
     )
 
     created_at = Column(
-        DateTime,
-        default=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time
     )
 
     updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time,
+        onupdate=get_ist_time
     )

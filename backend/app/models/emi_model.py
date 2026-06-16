@@ -1,8 +1,7 @@
-from sqlalchemy import Column, Integer, Float, String, ForeignKey
-from sqlalchemy import DateTime
-from datetime import datetime
+from sqlalchemy import Column, Integer, Float, String, ForeignKey, DateTime
 
 from app.database.database import Base
+from app.utils.time_utils import get_ist_time
 
 
 class EMI(Base):
@@ -19,15 +18,16 @@ class EMI(Base):
 
     amount = Column(Float)
 
+    due_date = Column(DateTime(timezone=True))
+
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+
     status = Column(String, default="PENDING")
 
-    created_at = Column(
-        DateTime,
-        default=datetime.utcnow
-    )
+    created_at = Column(DateTime(timezone=True), default=get_ist_time)
 
     updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time,
+        onupdate=get_ist_time
     )

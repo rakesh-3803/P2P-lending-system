@@ -1,8 +1,13 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey
-from sqlalchemy import DateTime
-from datetime import datetime
+from sqlalchemy import (
+    Column,
+    Integer,
+    Float,
+    ForeignKey,
+    DateTime
+)
 
 from app.database.database import Base
+from app.utils.time_utils import get_ist_time
 
 
 class Wallet(Base):
@@ -26,12 +31,12 @@ class Wallet(Base):
     )
 
     created_at = Column(
-        DateTime,
-        default=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time
     )
 
     updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time,
+        onupdate=get_ist_time
     )

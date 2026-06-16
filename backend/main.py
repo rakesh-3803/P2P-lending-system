@@ -11,6 +11,7 @@ from app.models.wallet_model import Wallet
 from app.models.transaction_model import Transaction
 from app.models.lender_rejection_model import LenderRejection
 from app.models.emi_model import EMI
+from app.models.password_reset_model import PasswordReset
 
 from app.routes.auth_route import router as auth_router
 from app.routes.loan_route import router as loan_router
@@ -25,6 +26,7 @@ from app.routes.bank_account_route import router as bank_account_router
 from app.routes.borrower_profile_route import router as borrower_profile_router
 from app.routes.lender_rejection_route import router as lender_rejection_router
 from app.routes.ai_agent_route import router as ai_agent_router
+from app.routes.password_reset_route import router as password_reset_router
 
 # =========================================
 # CREATE DATABASE TABLES
@@ -65,6 +67,7 @@ app.include_router(bank_account_router)
 app.include_router(borrower_profile_router)
 app.include_router(lender_rejection_router)
 app.include_router(ai_agent_router)
+app.include_router(password_reset_router)
 
 # =========================================
 # HOME ROUTE

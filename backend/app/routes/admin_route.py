@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+import csv
+from io import StringIO
+from fastapi.responses import StreamingResponse
+
 from app.database.db_dependency import get_db
 
 from app.models.user_model import User
@@ -321,3 +325,172 @@ def admin_analytics(
             "completed_profiles": completed_profiles
         }
     }
+
+@router.get("/admin/loan/{loan_id}/details")
+def get_loan_details(
+    loan_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["ADMIN"])
+
+    loan = db.query(Loan).filter(
+        Loan.id == loan_id
+    ).first()
+
+    if not loan:
+        raise HTTPException(
+            status_code=404,
+            detail="Loan not found"
+        )
+
+    borrower = db.query(User).filter(
+        User.id == loan.borrower_id
+    ).first()
+
+    profile = db.query(BorrowerProfile).filter(
+        BorrowerProfile.user_id == loan.borrower_id
+    ).first()
+
+    investment = db.query(Investment).filter(
+        Investment.loan_id == loan.id
+    ).first()
+
+    emis = db.query(EMI).filter(
+        EMI.loan_id == loan.id
+    ).all()
+
+    transactions = db.query(Transaction).filter(
+        Transaction.description.ilike(f"%loan%")
+    ).all()
+
+    return {
+        "loan": loan,
+        "borrower": {
+            "id": borrower.id if borrower else None,
+            "name": borrower.full_name if borrower else None,
+            "email": borrower.email if borrower else None
+        },
+        "borrower_profile": profile,
+        "investment": investment,
+        "emis": emis,
+        "transactions": transactions
+    }
+@router.get("/admin/dashboard-summary")
+def admin_dashboard_summary(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["ADMIN"])
+
+    total_users = db.query(User).count()
+
+    total_borrowers = db.query(User).filter(
+        User.role.ilike("borrower")
+    ).count()
+
+    total_lenders = db.query(User).filter(
+        User.role.ilike("lender")
+    ).count()
+
+    total_loans = db.query(Loan).count()
+
+    pending_loans = db.query(Loan).filter(
+        Loan.status == "PENDING"
+    ).count()
+
+    approved_loans = db.query(Loan).filter(
+        Loan.status == "APPROVED"
+    ).count()
+
+    funded_loans = db.query(Loan).filter(
+        Loan.status == "FUNDED"
+    ).count()
+
+    completed_loans = db.query(Loan).filter(
+        Loan.status == "COMPLETED"
+    ).count()
+
+    rejected_loans = db.query(Loan).filter(
+        Loan.status.in_([
+            "REJECTED",
+            "REJECTED_BY_LENDERS",
+            "EXPIRED"
+        ])
+    ).count()
+
+    investments = db.query(Investment).all()
+
+    total_invested_amount = sum(
+        investment.amount for investment in investments
+    )
+
+    return {
+        "users": {
+            "total_users": total_users,
+            "borrowers": total_borrowers,
+            "lenders": total_lenders
+        },
+        "loans": {
+            "total_loans": total_loans,
+            "pending_loans": pending_loans,
+            "approved_loans": approved_loans,
+            "funded_loans": funded_loans,
+            "completed_loans": completed_loans,
+            "rejected_loans": rejected_loans
+        },
+        "investments": {
+            "total_invested_amount": total_invested_amount
+        }
+    }
+
+@router.get("/admin/export-loans")
+def export_loans(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["ADMIN"])
+
+    loans = db.query(Loan).all()
+
+    output = StringIO()
+
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Loan ID",
+        "Borrower ID",
+        "Amount",
+        "Interest Rate",
+        "Tenure",
+        "Purpose",
+        "Status",
+        "Created At"
+    ])
+
+    for loan in loans:
+
+        writer.writerow([
+            loan.id,
+            loan.borrower_id,
+            loan.amount,
+            loan.interest_rate,
+            loan.tenure_months,
+            loan.purpose,
+            loan.status,
+            loan.created_at
+        ])
+
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition":
+            "attachment; filename=loan_report.csv"
+        }
+    )

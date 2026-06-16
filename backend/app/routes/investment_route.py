@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,6 +9,9 @@ from app.models.wallet_model import Wallet
 from app.models.transaction_model import Transaction
 from app.models.notification_model import Notification
 from app.models.emi_model import EMI
+
+from app.utils.time_utils import get_ist_time
+from app.utils.date_utils import add_months
 
 from app.schemas.investment_schema import InvestmentCreate
 
@@ -99,29 +101,42 @@ def invest_in_loan(
 
     loan.status = "FUNDED"
 
-    # GENERATE EMI SCHEDULE
+    # =========================================
+    # GENERATE EMI SCHEDULE WITH DUE DATES
+    # =========================================
+    
+    # Borrower pays original interest + 2% convenience fee
+    borrower_interest_rate = loan.interest_rate + 2
+
     total_repayment = (
         loan.amount +
         (
-            loan.amount * loan.interest_rate / 100
+            loan.amount * borrower_interest_rate / 100
         )
     )
-
     emi_amount = round(
         total_repayment / loan.tenure_months,
         2
     )
+
+    funded_date = get_ist_time()
 
     for emi_number in range(
         1,
         loan.tenure_months + 1
     ):
 
+        due_date = add_months(
+            funded_date,
+            emi_number
+        )
+
         emi = EMI(
             loan_id=loan.id,
             borrower_id=loan.borrower_id,
             emi_number=emi_number,
             amount=emi_amount,
+            due_date=due_date,
             status="PENDING"
         )
 
@@ -144,11 +159,18 @@ def invest_in_loan(
     db.add(lender_transaction)
     db.add(borrower_transaction)
 
+    first_due_date = add_months(
+        funded_date,
+        1
+    )
+
     borrower_notification = Notification(
         user_id=loan.borrower_id,
         message=(
             f"₹{investment.amount} credited to your wallet. "
-            f"{loan.tenure_months} EMI schedule generated."
+            f"{loan.tenure_months} EMI schedule generated. "
+            f"Your first EMI of ₹{emi_amount} is due on "
+            f"{first_due_date.strftime('%d-%m-%Y')}."
         )
     )
 
@@ -169,7 +191,8 @@ def invest_in_loan(
         "loan_status": loan.status,
         "remaining_balance": lender_wallet.balance,
         "emi_amount": emi_amount,
-        "number_of_emis": loan.tenure_months
+        "number_of_emis": loan.tenure_months,
+        "first_emi_due_date": first_due_date
     }
 
 
@@ -223,3 +246,73 @@ def my_investments(
             })
 
     return result
+@router.get("/lender/portfolio-summary")
+def lender_portfolio_summary(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    check_role(user, ["LENDER"])
+
+    investments = db.query(Investment).filter(
+        Investment.lender_id == user["user_id"]
+    ).all()
+
+    total_invested = 0
+    total_expected_return = 0
+    active_investments = 0
+    completed_investments = 0
+
+    recent_investments = []
+
+    for investment in investments:
+
+        loan = db.query(Loan).filter(
+            Loan.id == investment.loan_id
+        ).first()
+
+        if loan:
+
+            expected_return = (
+                investment.amount +
+                (
+                    investment.amount *
+                    loan.interest_rate / 100
+                )
+            )
+
+            total_invested += investment.amount
+            total_expected_return += expected_return
+
+            if loan.status == "FUNDED":
+                active_investments += 1
+
+            if loan.status == "COMPLETED":
+                completed_investments += 1
+
+            recent_investments.append({
+                "investment_id": investment.id,
+                "loan_id": loan.id,
+                "amount_invested": investment.amount,
+                "expected_return": expected_return,
+                "loan_status": loan.status,
+                "purpose": loan.purpose,
+                "created_at": investment.created_at
+            })
+
+    total_profit = total_expected_return - total_invested
+
+    recent_investments = sorted(
+        recent_investments,
+        key=lambda item: item["created_at"],
+        reverse=True
+    )[:5]
+
+    return {
+        "total_invested": total_invested,
+        "total_expected_return": total_expected_return,
+        "total_profit": total_profit,
+        "active_investments": active_investments,
+        "completed_investments": completed_investments,
+        "recent_investments": recent_investments
+    }

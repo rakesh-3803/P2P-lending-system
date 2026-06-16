@@ -11,6 +11,7 @@ from app.schemas.user_schema import UserCreate
 from app.schemas.user_schema import UserLogin
 
 from app.auth.jwt_handler import create_access_token
+from app.auth.auth_bearer import verify_token
 
 router = APIRouter()
 
@@ -109,4 +110,29 @@ def login(
         "token_type": "bearer",
         "role": existing_user.role,
         "user_id": existing_user.id
+    }
+
+@router.get("/me")
+def get_current_user(
+    db: Session = Depends(get_db),
+    user=Depends(verify_token)
+):
+
+    current_user = db.query(User).filter(
+        User.id == user["user_id"]
+    ).first()
+
+    if not current_user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    return {
+        "id": current_user.id,
+        "full_name": current_user.full_name,
+        "email": current_user.email,
+        "role": current_user.role,
+        "is_blocked": current_user.is_blocked,
+        "created_at": current_user.created_at
     }

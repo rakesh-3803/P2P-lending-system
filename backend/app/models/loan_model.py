@@ -1,35 +1,63 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
-from sqlalchemy import DateTime
-from datetime import datetime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    ForeignKey,
+    DateTime
+)
 
 from app.database.database import Base
+from app.utils.time_utils import get_ist_time
 
 
 class Loan(Base):
 
     __tablename__ = "loans"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
-    borrower_id = Column(Integer, ForeignKey("users.id"))
+    borrower_id = Column(
+        Integer,
+        ForeignKey("users.id")
+    )
 
-    amount = Column(Float, nullable=False)
+    amount = Column(
+        Float,
+        nullable=False
+    )
 
-    interest_rate = Column(Float, nullable=False)
+    interest_rate = Column(
+        Float,
+        nullable=False
+    )
 
-    tenure_months  = Column(Integer, nullable=False)
+    tenure_months = Column(
+        Integer,
+        nullable=False
+    )
 
-    purpose = Column(String, nullable=False)
+    purpose = Column(
+        String,
+        nullable=False
+    )
 
-    status = Column(String, default="PENDING")
+    status = Column(
+        String,
+        default="PENDING"
+    )
 
     created_at = Column(
-        DateTime,
-        default=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time
     )
 
     updated_at = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        default=get_ist_time,
+        onupdate=get_ist_time
     )
